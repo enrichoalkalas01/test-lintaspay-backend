@@ -50,6 +50,7 @@ Base path: `/api/v1`. Semua endpoint selain `/auth/*` dan `/health` butuh header
 | GET    | /disbursements              | semua role       | filter: `page, limit, search, status, date_from, date_to, sort_by, sort_order` |
 | GET    | /disbursements/:id          | semua role       | |
 | POST   | /disbursements              | semua role       | support header `Idempotency-Key` (uuid v4) |
+| POST   | /disbursements/batch        | semua role       | maks 100 item, partial success (201 semua sukses / 207 sebagian / 400 semua gagal) |
 | PATCH  | /disbursements/:id/status   | admin, superadmin| APPROVED / REJECTED, concurrency-safe |
 | DELETE | /disbursements/:id          | superadmin       | soft delete, hanya status PENDING |
 | GET    | /audit-logs                 | superadmin       | filter: `entity_id, action, date_from, date_to` |
@@ -97,4 +98,4 @@ migrations        SQL migration files
 make test
 ```
 
-Fokus di logika bisnis kritis (`internal/usecase/disbursements_test.go`): kalkulasi `admin_fee` (termasuk boundary 5 juta), idempotency handler (replay, key reuse dengan payload beda, key expired, format key invalid), validasi perubahan status (sudah diproses, kalah race/rows affected 0, status invalid, not found), soft delete non-PENDING, dan memastikan kegagalan audit log tidak menggagalkan operasi.
+Fokus di logika bisnis kritis (`internal/usecase/disbursements_test.go`): kalkulasi `admin_fee` (termasuk boundary 5 juta), idempotency handler (replay, key reuse dengan payload beda, key expired, format key invalid), validasi perubahan status (sudah diproses, kalah race/rows affected 0, status invalid, not found), soft delete non-PENDING, batch create partial success, dan memastikan kegagalan audit log tidak menggagalkan operasi.

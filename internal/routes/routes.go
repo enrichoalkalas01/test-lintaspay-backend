@@ -47,6 +47,7 @@ func (r *Routes) Register(router fiber.Router) {
 	disbursement := router.Group("/disbursements", r.authMW.Protect(), generalLimit)
 	disbursement.Get("/", r.disbursement.List)
 	disbursement.Post("/", createLimit, r.disbursement.Create)
+	disbursement.Post("/batch", createLimit, r.disbursement.CreateBatch)
 	disbursement.Get("/:id", r.disbursement.Detail)
 	disbursement.Patch("/:id/status",
 		r.authMW.RequireRoles(entity.RoleAdmin, entity.RoleSuperadmin),

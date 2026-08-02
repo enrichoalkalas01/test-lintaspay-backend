@@ -288,6 +288,45 @@ func TestCreateAuditFailureDoesNotBlock(t *testing.T) {
 	}
 }
 
+func TestCreateBatchPartialSuccess(t *testing.T) {
+	repo := newFakeDisbursementRepo()
+	audit := &fakeAuditRepo{}
+	uc := newTestUsecase(repo, audit)
+
+	invalid := createRequest()
+	invalid.Amount = 500 // below the 10000 minimum
+
+	missing := createRequest()
+	missing.RecipientName = ""
+
+	results, err := uc.CreateBatch(testCtx(), &entity.BatchCreateDisbursementRequest{
+		Items: []entity.CreateDisbursementRequest{*createRequest(), *invalid, *missing, *createRequest()},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(results) != 4 {
+		t.Fatalf("results length = %d, want 4", len(results))
+	}
+	for _, i := range []int{0, 3} {
+		if !results[i].Success || results[i].Data == nil {
+			t.Errorf("item %d should succeed, got %+v", i, results[i])
+		}
+	}
+	for _, i := range []int{1, 2} {
+		if results[i].Success || results[i].Error == "" {
+			t.Errorf("item %d should fail with an error message, got %+v", i, results[i])
+		}
+	}
+	if len(repo.disbursements) != 2 {
+		t.Errorf("created count = %d, want 2 (invalid items must be skipped)", len(repo.disbursements))
+	}
+	if len(audit.logs) != 2 {
+		t.Errorf("audit log count = %d, want 2", len(audit.logs))
+	}
+}
+
 func seedPending(repo *fakeDisbursementRepo) *entity.Disbursement {
 	d := &entity.Disbursement{
 		ID:            uuid.NewString(),

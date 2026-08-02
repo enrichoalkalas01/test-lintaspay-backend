@@ -40,9 +40,11 @@ func formatFieldError(e validator.FieldError) string {
 	case "email":
 		return fmt.Sprintf("%s must be a valid email address", field)
 	case "min":
-		return fmt.Sprintf("%s must be at least %s characters", field, e.Param())
+		return fmt.Sprintf("%s must be at least %s", field, e.Param())
 	case "max":
-		return fmt.Sprintf("%s must be at most %s characters", field, e.Param())
+		return fmt.Sprintf("%s must be at most %s", field, e.Param())
+	case "oneof":
+		return fmt.Sprintf("%s must be one of: %s", field, e.Param())
 	default:
 		return fmt.Sprintf("%s is invalid", field)
 	}

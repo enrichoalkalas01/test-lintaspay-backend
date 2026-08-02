@@ -49,6 +49,19 @@ type CreateDisbursementRequest struct {
 	Note          string `json:"note"`
 }
 
+type BatchCreateDisbursementRequest struct {
+	// items are validated one by one in the usecase so a single bad item
+	// does not fail the whole batch (partial success)
+	Items []CreateDisbursementRequest `json:"items" validate:"required,min=1,max=100"`
+}
+
+type BatchItemResult struct {
+	Index   int           `json:"index"`
+	Success bool          `json:"success"`
+	Data    *Disbursement `json:"data,omitempty"`
+	Error   string        `json:"error,omitempty"`
+}
+
 type UpdateStatusRequest struct {
 	Status string `json:"status" validate:"required,oneof=APPROVED REJECTED"`
 	Note   string `json:"note"`
@@ -102,6 +115,7 @@ type DisbursementRepository interface {
 
 type DisbursementUsecase interface {
 	Create(ctx context.Context, req *CreateDisbursementRequest, idempotencyKey string) (*Disbursement, bool, error)
+	CreateBatch(ctx context.Context, req *BatchCreateDisbursementRequest) ([]BatchItemResult, error)
 	List(ctx context.Context, f *DisbursementFilter) ([]Disbursement, int64, error)
 	Detail(ctx context.Context, id string) (*Disbursement, error)
 	UpdateStatus(ctx context.Context, id string, req *UpdateStatusRequest) (*Disbursement, error)

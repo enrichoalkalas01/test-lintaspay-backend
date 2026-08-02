@@ -7,12 +7,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"test-lintaspay/internal/domain/entity"
 	"test-lintaspay/pkg/common/httpresponse"
 	"test-lintaspay/pkg/common/reqctx"
 	"test-lintaspay/pkg/logger"
+	"test-lintaspay/pkg/utils"
 
 	"github.com/google/uuid"
 	"github.com/spf13/viper"
@@ -132,6 +134,54 @@ func (u *disbursementUsecase) Create(ctx context.Context, req *entity.CreateDisb
 	}
 
 	return nil, false, httpresponse.Conflict("idempotency key conflict, please retry")
+}
+
+// CreateBatch processes items independently: an invalid or failed item only
+// fails that item, the rest still gets created (partial success).
+func (u *disbursementUsecase) CreateBatch(ctx context.Context, req *entity.BatchCreateDisbursementRequest) ([]entity.BatchItemResult, error) {
+	actor := reqctx.Username(ctx)
+	results := make([]entity.BatchItemResult, 0, len(req.Items))
+
+	for i := range req.Items {
+		item := req.Items[i]
+
+		if err := utils.ValidateStruct(&item); err != nil {
+			results = append(results, entity.BatchItemResult{
+				Index: i,
+				Error: strings.Join(utils.FormatValidationError(err), ", "),
+			})
+			continue
+		}
+
+		now := time.Now().UTC()
+		d := &entity.Disbursement{
+			ID:            uuid.NewString(),
+			RecipientName: item.RecipientName,
+			AccountNumber: item.AccountNumber,
+			BankCode:      item.BankCode,
+			Amount:        item.Amount,
+			AdminFee:      CalculateAdminFee(item.Amount),
+			Note:          item.Note,
+			Status:        entity.StatusPending,
+			CreatedBy:     actor,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+
+		if err := u.repo.Create(ctx, d); err != nil {
+			logger.WithCtx(ctx, u.log).Error("failed to create disbursement in batch",
+				zap.Int("index", i),
+				zap.Error(err),
+			)
+			results = append(results, entity.BatchItemResult{Index: i, Error: "failed to create disbursement"})
+			continue
+		}
+
+		u.writeAudit(ctx, d.ID, entity.AuditActionCreated, nil, d)
+		results = append(results, entity.BatchItemResult{Index: i, Success: true, Data: d})
+	}
+
+	return results, nil
 }
 
 func (u *disbursementUsecase) List(ctx context.Context, f *entity.DisbursementFilter) ([]entity.Disbursement, int64, error) {

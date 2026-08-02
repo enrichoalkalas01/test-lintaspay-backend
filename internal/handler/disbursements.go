@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+
 	"test-lintaspay/internal/domain/entity"
 	"test-lintaspay/pkg/common/httpresponse"
 	"test-lintaspay/pkg/utils"
@@ -58,6 +60,39 @@ func (h *DisbursementHandler) Create(c *fiber.Ctx) error {
 	}
 
 	return httpresponse.Created(c, "disbursement created", result)
+}
+
+func (h *DisbursementHandler) CreateBatch(c *fiber.Ctx) error {
+	req := new(entity.BatchCreateDisbursementRequest)
+	if err := c.BodyParser(req); err != nil {
+		return httpresponse.BadRequest("invalid request body")
+	}
+	if err := utils.ValidateStruct(req); err != nil {
+		return httpresponse.BadRequest("validation failed").WithDetails(utils.FormatValidationError(err))
+	}
+
+	results, err := h.usecase.CreateBatch(c.UserContext(), req)
+	if err != nil {
+		return err
+	}
+
+	succeeded := 0
+	for _, r := range results {
+		if r.Success {
+			succeeded++
+		}
+	}
+
+	code := fiber.StatusCreated
+	switch {
+	case succeeded == 0:
+		code = fiber.StatusBadRequest
+	case succeeded < len(results):
+		code = fiber.StatusMultiStatus
+	}
+
+	message := fmt.Sprintf("%d of %d disbursements created", succeeded, len(results))
+	return httpresponse.NewDataResponse(code, message, results).JSON(c)
 }
 
 func (h *DisbursementHandler) UpdateStatus(c *fiber.Ctx) error {
